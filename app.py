@@ -10,14 +10,27 @@ import os
 
 st.set_page_config(page_title="Monday.com Dashboard", layout="wide")
 
-# Título da aplicação
-st.title("Monday.com Dashboard")
-
 # Configuração Monday.com
-API_TOKEN = st.sidebar.text_input("API Token do Monday.com", 
-                                  value="eyJhbGciOiJIUzI1NiJ9.eyJ0aWQiOjQ2NDIwMDY2NywiYWFpIjoxMSwidWlkIjoxODEzOTYyOCwiaWFkIjoiMjAyNS0wMS0yOFQxMTozMDozNS43ODRaIiwicGVyIjoibWU6d3JpdGUiLCJhY3RpZCI6Nzk0NDk2MywicmduIjoidXNlMSJ9.IWYJd4x3UTFFPAec925cwbriVjusgX4xTzxzFDj_w24",
-                                  type="password")
 API_URL = "https://api.monday.com/v2"
+
+# Função para a tela de login
+def login_screen():
+    st.title("Login - Monday.com Dashboard")
+
+    with st.form(key="login_form"):
+        username = st.text_input("Usuário")
+        password = st.text_input("Senha", type="password")
+        submit_button = st.form_submit_button(label="Entrar")
+
+    if submit_button:
+        stored_username = st.secrets["credentials"]["user"]
+        stored_password = st.secrets["credentials"]["password"]
+
+        if username == stored_username and password == stored_password:
+            st.session_state["logged_in"] = True
+            st.rerun()
+        else:
+            st.error("Usuário ou senha incorretos!")
 
 # Cache para funções que usamos repetidamente
 @st.cache_data(ttl=3600)
@@ -161,7 +174,6 @@ def identify_column(columns, column_type, possible_titles):
             return column
     return None
 
-# Função melhorada para extrair qualquer valor de coluna com tratamento específico para cada tipo
 # Função ajustada para extrair valores de coluna
 def extract_column_value(column_id, column_type, column_values, status_labels_map):
     if not column_id or column_id not in column_values:
@@ -235,7 +247,6 @@ def extract_column_value(column_id, column_type, column_values, status_labels_ma
                 return text
             return f"No {column_type}"
     
-    # (O restante da função permanece igual)
     elif column_type == "date":
         try:
             parsed_value = json.loads(value)
@@ -555,14 +566,16 @@ def fetch_all_items(api_token, start_date=None, end_date=None, excluded_status=N
         st.warning("Nenhum item foi processado com sucesso.")
         return None
 
-# Interface do Streamlit
-def main():
+# Função para o dashboard principal
+def dashboard():
+    st.title("Monday.com Dashboard")
+
     st.sidebar.header("Filtros")
     
     # Carregar os quadros e extrair informações de status
     if st.sidebar.button("Carregar Dados de Status"):
         with st.spinner("Carregando dados iniciais..."):
-            boards = fetch_all_boards(API_TOKEN)
+            boards = fetch_all_boards(st.secrets["API_TOKEN"])
             status_labels_map = extract_status_maps(boards)
             all_status = get_all_status_values(boards, status_labels_map)
             
@@ -592,10 +605,10 @@ def main():
     
     # Botão para buscar dados
     if st.sidebar.button("Buscar Itens"):
-        if API_TOKEN:
+        if st.secrets["API_TOKEN"]:
             with st.spinner("Buscando itens do Monday.com..."):
                 df = fetch_all_items(
-                    API_TOKEN, 
+                    st.secrets["API_TOKEN"], 
                     start_date=start_date,
                     end_date=end_date,
                     excluded_status=excluded_status
@@ -607,7 +620,7 @@ def main():
                 else:
                     st.warning("Nenhum item encontrado com os filtros selecionados.")
         else:
-            st.error("Por favor, forneça um token de API válido.")
+            st.error("Token de API não configurado corretamente.")
     
     # Botões para exportar
     col1, col2 = st.sidebar.columns(2)
@@ -701,6 +714,18 @@ def main():
             st.info("Clique em 'Carregar Dados de Status' para iniciar a aplicação e carregar os status disponíveis.")
         else:
             st.info("Configure os filtros e clique em 'Buscar Itens' para visualizar os dados.")
+
+# Função principal
+def main():
+    # Inicializar o estado de login
+    if "logged_in" not in st.session_state:
+        st.session_state["logged_in"] = False
+
+    # Mostrar a tela de login ou o dashboard
+    if not st.session_state["logged_in"]:
+        login_screen()
+    else:
+        dashboard()
 
 if __name__ == "__main__":
     main()
